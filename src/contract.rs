@@ -1,9 +1,10 @@
 use crate::error::ContractError;
 use crate::execute;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, MigrateMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::query;
-use crate::state;
-use cosmwasm_std::entry_point;
+use crate::reply::handle_reply;
+use crate::state::{self};
+use cosmwasm_std::{entry_point, Reply};
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
@@ -18,8 +19,7 @@ pub fn instantiate(
   msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
   set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-  state::initialize(deps, &env, &info, &msg)?;
-  Ok(Response::new().add_attribute("action", "instantiate"))
+  state::initialize(deps, &env, &info, &msg)
 }
 
 #[entry_point]
@@ -30,9 +30,7 @@ pub fn execute(
   msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
   match msg {
-    ExecuteMsg::TransferOwnership { new_owner } => {
-      execute::transfer_ownership(deps, env, info, &new_owner)
-    },
+    ExecuteMsg::Submit(req) => execute::submit(deps, env, info, req),
   }
 }
 
@@ -43,9 +41,19 @@ pub fn query(
   msg: QueryMsg,
 ) -> Result<Binary, ContractError> {
   let result = match msg {
-    QueryMsg::Select { fields, wallet } => to_binary(&query::select(deps, fields, wallet)?),
+    QueryMsg::Select { fields, account } => to_binary(&query::select(deps, fields, account)?),
+    QueryMsg::Orders { account, limit, cursor } => to_binary(&query::orders(deps, account, cursor, limit)?),
   }?;
   Ok(result)
+}
+
+#[entry_point]
+pub fn reply(
+  deps: DepsMut,
+  _env: Env,
+  reply: Reply,
+) -> Result<Response, ContractError> {
+  handle_reply(deps, reply)
 }
 
 #[entry_point]
